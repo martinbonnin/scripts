@@ -45,6 +45,7 @@ entry = Gtk.Entry();
 def entry_callback(widget, e):
     text = e.get_text()
     log("Execute: %s" % text)
+    e.set_text("")
     for term in terms:
         term.feed_child(text + "\n", -1)
 
