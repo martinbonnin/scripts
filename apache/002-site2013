@@ -1,0 +1,21 @@
+NameVirtualHost *:82
+Listen 82
+
+<VirtualHost *:82>
+	ServerAdmin webmaster@localhost
+
+	ScriptAlias /cgi /home/martin/git/scripts/apache/
+	DocumentRoot /home/martin/git/mbonnin.net/site
+	
+	RewriteEngine on
+	RewriteRule (.*) /cgi/intercept.sh [E=PATH_REQUESTED:$1,PT] 
+	RewriteLogLevel 9
+	RewriteLog /home/martin/rewrite.log
+	
+	# Possible values include: debug, info, notice, warn, error, crit,
+	# alert, emerg.
+	LogLevel debug
+
+	CustomLog /var/log/apache2/access.log combined
+
+</VirtualHost>
