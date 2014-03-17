@@ -4,11 +4,13 @@ MBONNIN_DIR=/usr/local/home/martin/git/mbonnin.net
 cd ${MBONNIN_DIR}
 
 TMP_DIR=/usr/local/home/martin/apache/mbonnin.net
-FILE=${TMP_DIR}/${PATH_REQUESTED}
+FILE=${TMP_DIR}/${REDIRECT_FILE}
 
 case $FILE in 
     *.html ) TYPE="text/html" ;;
     *.css ) TYPE="text/css" ;;
+    *.xml ) TYPE="text/xml" ;;
+    *.js ) TYPE="application/javascript" ;;
     * ) TYPE="text/plain" ;;
 esac
 
@@ -21,6 +23,7 @@ then
         echo -e -n "Content-type: text/html\n";
         echo -e -n "Status: 404\n\n"
         echo "<code style=\"white-space: pre;\">"
+        echo "error executing ./generator/generator.py skeleton ${TMP_DIR}"
         cat /tmp/generator.error
         echo "</code>"
         exit 1
@@ -35,4 +38,5 @@ then
 else
     echo -e -n "Status: 404\n\n"
     echo "File not found: ${FILE}"
+    printenv
 fi
