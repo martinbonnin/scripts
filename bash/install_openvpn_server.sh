@@ -73,11 +73,15 @@ cat > $BASEDIR/install.sh << EOF
 apt-get install openvpn
 echo "1" > /proc/sys/net/ipv4/ip_forward
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+mv dh2048.pem /etc/openvpn
+mv ${SERVER_NAME}.key /etc/openvpn
+mv ${SERVER_NAME}.crt /etc/openvpn
+mv $BASEDIR/server.conf /etc/openvpn
 /etc/init.d/openvpn restart
 EOF
 
 cd $BASEDIR/easy-rsa/easy-rsa/2.0/keys
-scp dh2048.pem ${SERVER_NAME}.key ${SERVER_NAME}.crt ca.crt $BASEDIR/server.conf $BASEDIR/install.sh $HOST:/etc/openvpn
+scp dh2048.pem ${SERVER_NAME}.key ${SERVER_NAME}.crt ca.crt $BASEDIR/server.conf $BASEDIR/install.sh $HOST:
 
-ssh $HOST "cd /etc/openvpn; chmod +x ./install.sh; ./install.sh"
+ssh $HOST "chmod +x ./install.sh; ./install.sh"
 
