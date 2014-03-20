@@ -60,12 +60,14 @@ key server.key
 dh dh2048.pem
 EOF
 
-cat > $BASEDIR/run_openvpn.sh << EOF
+cat > $BASEDIR/run.sh << EOF
+apt-get install openvpn
 echo "1" > /proc/sys/net/ipv4/ip_forward
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 openvpn --config server.conf
 EOF
 
 cd $BASEDIR/easy-rsa/easy-rsa/2.0/keys
-scp dh2048.pem server.key server.crt ca.crt $BASEDIR/server.conf $BASEDIR/run_openvpn.sh $HOST:
-ssh $HOST "./run_openvpn.sh"
+scp dh2048.pem server.key server.crt ca.crt $BASEDIR/server.conf $BASEDIR/run.sh $HOST:
+ssh $HOST "chmod +x ./run.sh; ./run.sh"
+
