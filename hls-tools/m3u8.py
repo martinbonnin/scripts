@@ -108,6 +108,9 @@ class Playlist:
 				v = Variant()
 				v.bps = int(attr['BANDWIDTH'])
 				continue
+			if (line.find('#EXT-X-ENDLIST') == 0):
+				self.endlist = True
+				continue
 			m = re.match(r'#EXT-X-MEDIA-SEQUENCE:(.*)', line)
 			if (m):
 				self.media_sequence = int(m.group(1))
