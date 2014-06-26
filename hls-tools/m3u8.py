@@ -79,6 +79,9 @@ class Playlist:
 					value = ''
 					in_name = True
 					quoted = False
+			#add last attribute
+			if (name and value):
+				attr[name] = value
 		return attr
 			
 	def parse(self, url):
