@@ -62,7 +62,7 @@ interfaces = netifaces.interfaces()
 for interface in interfaces:
 	try:
 		addr = netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr']
-		print('\thttp://%s:%d'% (addr, PORT))
+		print('\thttp://%s:%d/index.m3u8'% (addr, PORT))
 	except:
 		pass
 

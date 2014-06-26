@@ -123,6 +123,8 @@ class Extractor():
 			
 			seq += 1	
 		#Logger.log('download endlist\n')
+		out_playlist.endlist = True
+		out_playlist.save()
 		self.queue.put(Extractor.MESSAGE_THREAD_DONE)
 			 
 	def run(self):

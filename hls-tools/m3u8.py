@@ -33,10 +33,15 @@ class Playlist:
 				fd.write('#EXT-X-STREAM-INF:BANDWIDTH=%d\n'%v.bps)
 				fd.write(v.url + '\n')
 		else:
+			#XXX: do not hardcode
+			fd.write('#EXT-X-VERSION:3\n')
+			fd.write('#EXT-X-PLAYLIST-TYPE:VOD\n')
+			fd.write('#EXT-X-TARGETDURATION:11\n')
 			for e in self.entries:
 				fd.write('#EXTINF:%f\n'%e.extinf)
 				fd.write(e.url + '\n')
-				
+			if (self.endlist):
+				fd.write('#EXT-X-ENDLIST\n')
 	def append_entry(self, e):
 		if (len(self.variants) > 0):
 			raise M3U8Exception('cannot append entry to a main playlist')
