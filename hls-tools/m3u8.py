@@ -105,6 +105,7 @@ class Playlist:
 		
 		e = None
 		v = None
+		ke = None
 		for line in lines:
 			m = re.match(r'#EXTINF:([^,]*),?(.*)', line)
 			if (m):
@@ -115,6 +116,13 @@ class Playlist:
 				attr = self.parseAttributeList(line[len('#EXT-X-STREAM-INF:'):])
 				v = Variant()
 				v.bps = int(attr['BANDWIDTH'])
+				continue
+			if (line.find('#EXT-X-KEY:') == 0):
+				attr = self.parseAttributeList(line[len('#EXT-X-KEY:'):])
+				ke = KeyEntry();
+				ke.uri = attr['URI']
+				if 'IV' in attr:
+					ke.iv = attr['URI'];
 				continue
 			if (line.find('#EXT-X-ENDLIST') == 0):
 				self.endlist = True
@@ -129,6 +137,8 @@ class Playlist:
 				if (e):
 					e.url = line
 					e.absolute_url = absolute_url
+					if (ke):
+						e.ke = ke;
 					self.append_entry(e)
 					e = None
 				elif (v):
