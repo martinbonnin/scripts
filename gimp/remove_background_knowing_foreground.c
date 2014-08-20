@@ -7,7 +7,7 @@ static void run   (const gchar      *name,
                    gint             *nreturn_vals,
                    GimpParam       **return_vals);
 static void remove_background  (GimpDrawable     *drawable);
-static gboolean dialog  (GimpDrawable     *drawable);
+static gboolean show_dialog  (GimpDrawable     *drawable);
 
 GimpPlugInInfo PLUG_IN_INFO =
 {
@@ -19,7 +19,8 @@ GimpPlugInInfo PLUG_IN_INFO =
 
 MAIN()
 
-static int radius;
+static GimpRGB backgroundColor;
+static GimpRGB foregroundColor;
 
 static void
 query (void)
@@ -87,11 +88,16 @@ run (const gchar      *name,
   /*  Get the specified drawable  */
   drawable = gimp_drawable_get (param[2].data.d_drawable);
 
+  if (!gimp_drawable_has_alpha (drawable->drawable_id)) {
+	g_message("You need an alpha channel");
+    return;
+  }
+  
   switch (run_mode)
     {
     case GIMP_RUN_INTERACTIVE:
       /* Display the dialog */
-      if (! dialog (drawable))
+      if (! show_dialog (drawable))
         return;
       break;
 
@@ -132,8 +138,17 @@ remove_background (GimpDrawable *drawable)
   gint         i, j, k, channels;
   gint         x1, y1, x2, y2;
   GimpPixelRgn rgn_in, rgn_out;
-  guchar      *row1, *row2, *row3;
+  guchar      *row;
   guchar      *outrow;
+  GimpRGB bc = backgroundColor;
+  GimpRGB fc = foregroundColor;
+  
+  bc.r *= 255;
+  bc.g *= 255;
+  bc.b *= 255;
+  fc.r *= 255;
+  fc.g *= 255;
+  fc.b *= 255;
 
   gimp_drawable_mask_bounds (drawable->drawable_id,
                              &x1, &y1,
@@ -151,46 +166,36 @@ remove_background (GimpDrawable *drawable)
                        x2 - x1, y2 - y1,
                        TRUE, TRUE);
 
-  /* Initialise enough memory for row1, row2, row3, outrow */
-  row1 = g_new (guchar, channels * (x2 - x1));
-  row2 = g_new (guchar, channels * (x2 - x1));
-  row3 = g_new (guchar, channels * (x2 - x1));
+  row = g_new (guchar, channels * (x2 - x1));
   outrow = g_new (guchar, channels * (x2 - x1));
 
   for (i = y1; i < y2; i++)
     {
-      /* Get row i-1, i, i+1 */
       gimp_pixel_rgn_get_row (&rgn_in,
-                              row1,
-                              x1, MAX (y1, i - 1),
-                              x2 - x1);
-      gimp_pixel_rgn_get_row (&rgn_in,
-                              row2,
+                              row,
                               x1, i,
-                              x2 - x1);
-      gimp_pixel_rgn_get_row (&rgn_in,
-                              row3,
-                              x1, MIN (y2 - 1, i + 1),
                               x2 - x1);
 
       for (j = x1; j < x2; j++)
         {
-          /* For each layer, compute the average of the nine
-           * pixels */
-          for (k = 0; k < channels; k++)
-            {
-              int sum = 0;
-              sum = row1[channels * MAX ((j - 1 - x1), 0) + k]           +
-                    row1[channels * (j - x1) + k]                        +
-                    row1[channels * MIN ((j + 1 - x1), x2 - x1 - 1) + k] +
-                    row2[channels * MAX ((j - 1 - x1), 0) + k]           +
-                    row2[channels * (j - x1) + k]                        +
-                    row2[channels * MIN ((j + 1 - x1), x2 - x1 - 1) + k] +
-                    row3[channels * MAX ((j - 1 - x1), 0) + k]           +
-                    row3[channels * (j - x1) + k]                        +
-                    row3[channels * MIN ((j + 1 - x1), x2 - x1 - 1) + k];
-              outrow[channels * (j - x1) + k] = sum / 9;
-            }
+          int alpha;
+          
+          guchar *in = &row[channels * (j - x1)];
+          guchar *out = &outrow[channels * (j - x1)];
+          
+          double den = (fc.r - bc.r) * (fc.r - bc.r) + (fc.g - bc.g) * (fc.g - bc.g) + (fc.b - bc.b) * (fc.b - bc.b);
+          double num = (fc.r - bc.r) * (in[0] - bc.r) + (fc.g - bc.g) * (in[1] - bc.g) + (fc.b - bc.b) * (in[2] - bc.b);
+          
+          alpha = 255 * num / den;
+		  if (alpha < 0) {
+			  alpha = 0;
+		  } else if (alpha > 255) {
+			  alpha = 255;
+		  }
+		  out[0] = 255 * fc.r;
+		  out[1] = 255 * fc.g;
+		  out[2] = 255 * fc.b;
+		  out[3] = alpha;
         }
 
       gimp_pixel_rgn_set_row (&rgn_out,
@@ -202,9 +207,7 @@ remove_background (GimpDrawable *drawable)
         gimp_progress_update ((gdouble) (i - y1) / (gdouble) (y2 - y1));
     }
 
-  g_free (row1);
-  g_free (row2);
-  g_free (row3);
+  g_free (row);
   g_free (outrow);
 
   gimp_drawable_flush (drawable);
@@ -215,17 +218,14 @@ remove_background (GimpDrawable *drawable)
 }
 
 static gboolean
-dialog (GimpDrawable *drawable)
+show_dialog (GimpDrawable *drawable)
 {
   GtkWidget *dialog;
-  GtkWidget *main_vbox;
-  GtkWidget *main_hbox;
-  GtkWidget *frame;
-  GtkWidget *radius_label;
-  GtkWidget *alignment;
-  GtkWidget *spinbutton;
-  GtkObject *spinbutton_adj;
-  GtkWidget *frame_label;
+  GtkWidget *vbox;
+  GtkWidget *hbox;
+  GtkWidget *label;
+  GtkWidget *foregroundButton;
+  GtkWidget *backgroundButton;
   gboolean   run;
 
   gimp_ui_init ("remove_background", FALSE);
@@ -239,47 +239,47 @@ dialog (GimpDrawable *drawable)
 
                             NULL);
 
-  main_vbox = gtk_vbox_new (FALSE, 6);
-  gtk_container_add (GTK_CONTAINER (GTK_DIALOG (dialog)->vbox), main_vbox);
-  gtk_widget_show (main_vbox);
+  vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+  gtk_container_add (GTK_CONTAINER (GTK_DIALOG (dialog)->vbox), vbox);
+  gtk_widget_show (vbox);
+  
+  hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  gtk_container_add (GTK_CONTAINER (vbox), hbox);
+  gtk_widget_show(hbox);
+  
+  label = gtk_label_new_with_mnemonic ("Background:");
+  gtk_container_add (GTK_CONTAINER (hbox), label);
+  gtk_widget_show (label);
+  
+  backgroundButton = gimp_color_button_new("Background color", 32, 32, &backgroundColor, GIMP_COLOR_AREA_FLAT);
+  g_signal_connect (backgroundButton, "color-changed",
+                    G_CALLBACK (gimp_color_button_get_color),
+                    &backgroundColor);
+  gtk_container_add (GTK_CONTAINER (hbox), backgroundButton);
+  gtk_widget_show (backgroundButton);
+  
+  hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  gtk_container_add (GTK_CONTAINER (vbox), hbox);
+  gtk_widget_show(hbox);
+  
+  label = gtk_label_new_with_mnemonic ("Foreground:");
+  gtk_container_add (GTK_CONTAINER (hbox), label);
+  gtk_widget_show (label);
+  
+  foregroundButton = gimp_color_button_new("Foreground color", 32, 32, &foregroundColor, GIMP_COLOR_AREA_FLAT);
+  g_signal_connect (foregroundButton, "color-changed",
+                    G_CALLBACK (gimp_color_button_get_color),
+                    &foregroundColor);
+  gtk_container_add (GTK_CONTAINER (hbox), foregroundButton);
+  gtk_widget_show (foregroundButton);
 
-  frame = gtk_frame_new (NULL);
-  gtk_widget_show (frame);
-  gtk_box_pack_start (GTK_BOX (main_vbox), frame, TRUE, TRUE, 0);
-  gtk_container_set_border_width (GTK_CONTAINER (frame), 6);
-
-  alignment = gtk_alignment_new (0.5, 0.5, 1, 1);
-  gtk_widget_show (alignment);
-  gtk_container_add (GTK_CONTAINER (frame), alignment);
-  gtk_alignment_set_padding (GTK_ALIGNMENT (alignment), 6, 6, 6, 6);
-
-  main_hbox = gtk_hbox_new (FALSE, 0);
-  gtk_widget_show (main_hbox);
-  gtk_container_add (GTK_CONTAINER (alignment), main_hbox);
-
-  radius_label = gtk_label_new_with_mnemonic ("_Radius:");
-  gtk_widget_show (radius_label);
-  gtk_box_pack_start (GTK_BOX (main_hbox), radius_label, FALSE, FALSE, 6);
-  gtk_label_set_justify (GTK_LABEL (radius_label), GTK_JUSTIFY_RIGHT);
-
-  spinbutton_adj = gtk_adjustment_new (3, 1, 16, 1, 5, 5);
-  spinbutton = gtk_spin_button_new (GTK_ADJUSTMENT (spinbutton_adj), 1, 0);
-  gtk_widget_show (spinbutton);
-  gtk_box_pack_start (GTK_BOX (main_hbox), spinbutton, FALSE, FALSE, 6);
-  gtk_spin_button_set_numeric (GTK_SPIN_BUTTON (spinbutton), TRUE);
-
-  frame_label = gtk_label_new ("<b>Modify radius</b>");
-  gtk_widget_show (frame_label);
-  gtk_frame_set_label_widget (GTK_FRAME (frame), frame_label);
-  gtk_label_set_use_markup (GTK_LABEL (frame_label), TRUE);
-
-  g_signal_connect (spinbutton_adj, "value_changed",
-                    G_CALLBACK (gimp_int_adjustment_update),
-                    &radius);
   gtk_widget_show (dialog);
 
   run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
 
+  gimp_color_button_get_color((GimpColorButton*)foregroundButton, &foregroundColor);
+  gimp_color_button_get_color((GimpColorButton*)backgroundButton, &backgroundColor);
+  
   gtk_widget_destroy (dialog);
 
   return run;
